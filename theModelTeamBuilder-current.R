@@ -1,0 +1,141 @@
+library(readr)
+library(rpart)
+library(dplyr)
+
+suns = c("Deandre Ayton", "Aron Baynes", "Devin Booker", "Mikal Bridges", "Cameron Johnson", "Chris Paul", "Dario Saric", "Frank Kaminsky", "Cheick Diallo", "Abdel Nader")
+warriors = c("Stephen Curry", "Draymond Green", "Kevon Looney", "Eric Paschall", "Brad Wanamaker", "Andrew Wiggins", "Kelly Oubre Jr.", "Marquese Chriss", "Damion Lee", "Jordan Poole", "Deandre Ayton")
+lakers = c("LeBron James", "Anthony Davis", "Montrezl Harrell", "Kyle Kuzma", "Dennis Schroeder", "Kentavious Caldwell-Pope", "Alex Caruso", "Wesley Matthews", "JaVale McGee", "Markieff Morris")
+
+data <- read_csv("modelFinalDataCategories.csv")
+#data = data %>% mutate_if(is.numeric, round, digits = 4)
+data2 = data[which(data$Year != 2019),]
+# Random Forest prediction of Kyphosis data
+install.packages('randomForest')
+library(randomForest)
+nums = c()
+# for (i in 3:113){
+#  if((i-3)%%11 <= 8){
+#    nums = append(nums, i)
+#  }
+# }
+
+#Cross validation
+rowsLeft = 1:114
+set.seed(150)
+cors = c()
+vCors = c()
+for (i in 1:6){
+  rowsUsed = sample(rowsLeft, size = 19, replace=FALSE)
+  print(rowsUsed)
+  dataUsed = data[rowsUsed,]
+  validationData = data[-rowsUsed,]
+  print(nrow(dataUsed))
+  print(nrow(validationData))
+
+  fit <- randomForest(SRS~., dataUsed[,3:113])
+  #print(fit) # view results
+  dataUsed$rfpredict = predict(fit, dataUsed)
+  plot(dataUsed$rfpredict, dataUsed$SRS, main = "STAR SRS Predictions vs Real SRS (Cross Validation: Training Data)", xlab = "STAR Predicted SRS", ylab = "Real SRS")
+  lm3 = lm(SRS ~ rfpredict, dataUsed)
+  #print(summary(lm3))
+  cors = append(cors, cor(dataUsed$rfpredict, dataUsed$SRS)**2)
+
+  #print(fit) # view results
+  validationData$rfpredict = predict(fit, validationData)
+  plot(validationData$rfpredict, validationData$SRS, main = "STAR SRS Predictions vs Real SRS (Cross Validation: Validation Data Fold=6)", xlab = "STAR Predicted SRS", ylab = "Real SRS")
+  lm4 = lm(SRS ~ rfpredict, validationData)
+  #print(summary(lm4))
+  vCors = append(vCors, cor(validationData$rfpredict, validationData$SRS)**2)
+}
+print(cors)
+print(vCors)
+print(mean(cors))
+print(mean(vCors))
+
+fit <- randomForest(SRS~., data2[,3:113])#3:113
+print(fit) # view results
+importance(fit) # importance of each predictor
+data$rfpredict = predict(fit, data)
+plot(data$rfpredict, data$SRS, main = "STAR SRS Predictions vs Real SRS (1985-2018 Training Data)", xlab = "STAR Predicted SRS", ylab = "Real SRS")
+lm3 = lm(SRS ~ rfpredict, data)
+summary(lm3)
+
+data3 = data[which(data$Year == 2019),]
+plot(data3$rfpredict, data3$SRS, col = "white", pch = 1, cex = 2, main = "STAR SRS Predictions vs Real SRS (2019 Validation Data)", xlab = "STAR Predicted SRS", ylab = "Real SRS")
+with(data3, text(SRS~rfpredict, labels = (data3$Team), font = 1, cex = 0.9))
+lm4 = lm(SRS ~ rfpredict, data3)
+abline(lm4)
+summary(lm4)
+print(cor(data3$rfpredict, data3$SRS))
+print(sqrt(sum((data3$SRS-data3$rfpredict)**2)/nrow(data3)))
+print(sum(abs(data3$SRS-data3$rfpredict))/nrow(data3))
+
+View(select(data3, 'Team', 'SRS', 'rfpredict'))
+
+adjustMinutesVorp <- function(newdata, Name, minutes){
+  for (i in 1:10){
+    if(newdata[[i, "Player"]] == Name){
+      playerNumber = i
+    }
+  }
+  multiplier = minutes/newdata[[playerNumber, "MP"]]
+  newdata[playerNumber, "MP"] = newdata[[playerNumber, "MP"]]*multiplier
+  newdata[playerNumber, "VORP"] = newdata[[playerNumber, "VORP"]]*multiplier
+  return(newdata)
+}
+
+adjustGamesVorp <- function(newdata){
+  for (playerNumber in 1:10){
+    multiplier = 82/64
+    newdata[playerNumber, "MP"] = newdata[[playerNumber, "MP"]]*multiplier
+    newdata[playerNumber, "VORP"] = newdata[[playerNumber, "VORP"]]*multiplier
+  }
+  
+  return(newdata)
+}
+#____________________________________________________________________________________________
+archetypes = read_csv("archetypes3.csv")
+#archetypes = archetypes[which(archetypes$Year == 2019),]
+#archetypes = archetypes %>% mutate_if(is.numeric, round, digits = 4)
+
+#Austin 1 teamList = c("James Harden", "Nikola Vucevic", "Danilo Gallinari", "George Hill", "Joe Ingles", "Marc Gasol", "J.J. Redick", "Danuel House", "Alex Caruso", "Kyle O'Quinn")
+#Austin 2 teamList = c("Jimmy Butler", "Bam Adebayo", "Christian Wood", "Justin Holiday", "Patrick Beverley", "Ricky Rubio", "Danny Green", "Kelly Olynyk", "Kentavious Caldwell-Pope", "Alex Len")
+#Vish 1 teamList = c("Nikola Jokic", "Kyle Lowry", "Kevin Love", "Seth Curry", "Duncan Robinson", "Delon Wright", "Dorian Finney-Smith", "Dwight Powell", "Nicolo Melli", "Brad Wanamaker")
+teamList = c("Rudy Gobert", "Kemba Walker", "Evan Fournier", "Robert Covington", "Bogdan Bogdanovic", "Jakob Poeltl", "T.J. McConnell", "Jeff Green", "Kyle Anderson", "Wesley Matthews")
+#teamList = c("Joel Embiid", "Bam Adebayo", "Donovan Mitchell", "Jamal Murray", "CJ McCollum", "Ja Morant", "Jaren Jackson Jr.", "Draymond Green", "Myles Turner", "Jerami Grant")
+teamListYears = c(2019,2019,2019, 2019,2019,2019,2019,2019,2019,2019, 2019)
+teamData = archetypes[0,]
+for (i in 1:length(teamList)){
+  teamData = rbind(teamData, archetypes[which(archetypes$Player == teamList[i] & archetypes$Year == teamListYears[i]),][1,])
+}
+#teamData = adjustMinutesVorp(teamData, "Deandre Ayton", 2000)
+teamData = adjustGamesVorp(teamData)
+teamData = teamData[order(-teamData$VORP),]
+teamData = teamData[1:10,]
+View(teamData)
+
+original = "PHI"
+originalTeam = data[which(data$Team == original & data$Year == 2019),]
+prediction = predict(fit,originalTeam)
+team = originalTeam
+
+for (i in 0:9){
+  row = as.vector(teamData[i+1,])
+  for (j in names(teamData)){
+    name = j
+    if (j == "Player"){
+      j = "Name"
+    }
+    if (j == "Archetype"){
+      j = "Arch"
+    }
+    if (!(j %in% c("Tm", "Year", "Pos"))){
+      #print(paste(j,i,sep = ''))
+      team[[paste(j,i,sep = '')]] = (row[[name]])
+    }
+  }
+}
+
+team$Team = original
+prediction2 = predict(fit, team)
+print(paste("Orignal: ", prediction, " New: ", prediction2, sep=''))
